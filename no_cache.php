@@ -14,7 +14,7 @@ function http_get($url)
     curl_setopt($request, CURLOPT_RETURNTRANSFER, true);
     $response = curl_exec($request);
     if (curl_errno($request)) {
-        echo ("[cURL] {$url} 请求失败 " . curl_error($request) . PHP_EOL);
+        error_log("[cURL] {$url} 请求失败 " . curl_error($request) . PHP_EOL);
         curl_close($request);
         return false;
     }
@@ -27,19 +27,19 @@ function v2nodes()
     // 获取订阅链接
     $response = http_get("https://www.v2nodes.com/");
     if ($response === false) {
-        echo ("[v2nodes] 获取订阅链接失败" . PHP_EOL);
+        error_log("[v2nodes] 获取订阅链接失败" . PHP_EOL);
         return false;
     }
     // 截取订阅链接
     preg_match('/data-config="(.*?)"/', $response, $sublink);
     if (!isset($sublink[1])) {
-        echo ("[v2nodes] 订阅链接提取失败" . PHP_EOL);
+        error_log("[v2nodes] 订阅链接提取失败" . PHP_EOL);
         return false;
     }
     // 获取节点
     $response = http_get($sublink[1]);
     if ($response === false) {
-        echo ("[v2nodes] 获取节点失败，订阅链接: " . $sublink[1] . PHP_EOL);
+        error_log("[v2nodes] 获取节点失败，订阅链接: " . $sublink[1] . PHP_EOL);
         return false;
     }
     // 这里不用判断订阅链接是否过期，缓存版的判断见 index.php
@@ -50,8 +50,9 @@ function shadowshare($file)
 {
     foreach (SHADOWSHARE_URLS as $url) {
         $response = http_get(sprintf($url, $file));
+        // 如果请求失败就从下一个接口获取
         if ($response === false) {
-            echo ("[shadowshare] " . sprintf($url, $file) . " 请求失败" . PHP_EOL);
+            error_log("[shadowshare] " . sprintf($url, $file) . " 请求失败" . PHP_EOL);
             continue;
         }
         // AES 解密
@@ -59,6 +60,12 @@ function shadowshare($file)
         $iv = "8YfiQ8wrkziZ5YFW";
         $cipher = "AES-128-CBC";
         $result = openssl_decrypt(base64_decode($response), $cipher, $key, OPENSSL_RAW_DATA, $iv);
+        // 如果 AES 解密失败也从下一个接口获取
+        if ($result === false) {
+            error_log("[shadowshare] {$file} AES 解密失败");
+            continue;
+        }
+        // 如果成功就直接返回数据
         return $result;
     }
     return false;

@@ -71,6 +71,50 @@ function shadowshare($file)
     return false;
 }
 
+function cnc07()
+{
+    $response = http_get("http://cnc07api.cnc07.com/api/cnc07iuapis");
+    if ($response === false) {
+        error_log("[cnc07] 请求失败" . PHP_EOL);
+        return false;
+    }
+    // JSON 解析
+    $decoded = json_decode($response, true);
+    if (json_last_error() != JSON_ERROR_NONE) {
+        error_log("[cnc07] JSON 解析失败" . PHP_EOL);
+        return false;
+    }
+    // 处理上游 API 返回异常
+    if ($decoded["errcode"] != 200 or empty($decoded["servers"])) {
+        error_log("[cnc07] 上游 API 返回异常 " . $decoded["errmsg"] . PHP_EOL);
+        return false;
+    }
+    // AES 解密
+    $key = "1kv10h7t*C3f8c@$";
+    $iv = "@$6l&bxb5n35c2w9";
+    $cipher = "AES-128-CBC";
+    $decrypted = openssl_decrypt(base64_decode($decoded["servers"]), $cipher, $key, OPENSSL_RAW_DATA, $iv);
+    if ($decrypted === false) {
+        error_log("[cnc07] AES 解密失败" . PHP_EOL);
+        return false;
+    }
+    // JSON 解析
+    $decoded = json_decode($decrypted, true);
+    if (json_last_error() != JSON_ERROR_NONE) {
+        error_log("[cnc07] JSON 解析失败" . PHP_EOL);
+        return false;
+    }
+    $result = "";
+    foreach ($decoded as $config) {
+        // 正则表达式提取节点，注意 JSON 里的服务器信息是假的，必须截取 alias 里面的
+        // $match 的参数依次为 ip, port, method, password
+        preg_match('/SS = ss, ([\\d.]+), (\\d+),encrypt-method=([\\w-]+),password=([\\w\\d]+)/', $config["alias"], $match);
+        // 原 python 代码直接这样手动拼接了，只考虑到有 shadowsocks 类型的节点，格式为 ss://method:password@ip:port#name
+        $result .= "ss://{$match[3]}:{$match[4]}@{$match[1]}:{$match[2]}#{$config['city_cn']} {$config['city']}" . PHP_EOL;
+    }
+    return $result;
+}
+
 
 // v2nodes 默认返回数据带 base64 编码
 if ($type == "v2nodes_base64") {
@@ -86,17 +130,25 @@ elseif ($type == "shadowshare") {
 } elseif ($type == "shadowshare_sub") {
     exit(shadowshare("sub"));
 }
+// cnc07 默认返回数据不带 base64 编码
+elseif ($type == "cnc07") {
+    exit(cnc07());
+} elseif ($type == "cnc07_base64") {
+    exit(base64_encode(cnc07()));
+}
 // 聚合
 elseif ($type == "merge") {
     $v2nodes = base64_decode(v2nodes());
     $shadowshare = shadowshare("shadowshareserver");
+    $cnc07 = cnc07();
     // 拼接节点
-    exit(implode(PHP_EOL, [$v2nodes, $shadowshare]));
+    exit(implode(PHP_EOL, [$v2nodes, $shadowshare, $cnc07]));
 } elseif ($type == "merge_base64") {
     $v2nodes = base64_decode(v2nodes());
     $shadowshare = shadowshare("shadowshareserver");
+    $cnc07 = cnc07();
     // 拼接节点
-    exit(base64_encode(implode(PHP_EOL, [$v2nodes, $shadowshare])));
+    exit(base64_encode(implode(PHP_EOL, [$v2nodes, $shadowshare, $cnc07])));
 }
 // shadowshare 普通代理池的 clash 订阅
 elseif ($type == "clash_http") {

@@ -15,3 +15,5 @@ const SHADOWSHARE_FILES = [ // shadowshare 要获取的文件名称
     "https_cn_encrypt",
     "socks5_cn_encrypt",
 ];
+
+const CNC07_FILE = "cnc07.txt"; // cnc07 保存文件名

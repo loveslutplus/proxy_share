@@ -1,3 +1,5 @@
+const CACHE_TTL_SECONDS = 10800; // Cache TTL in seconds (3 hours)
+
 const shadowshareURLs = [
   "https://gitee.com/api/v5/repos/configshare/share/raw/%s?access_token=9019dae4f65bd15afba8888f95d7ebcc&ref=hotfix",
   "https://raw.githubusercontent.com/configshare/share/hotfix/%s",
@@ -99,7 +101,8 @@ async function handleRequest(event) {
   const request = event.request;
   const url = new URL(request.url);
   const forceRefresh = url.searchParams.get("force_refresh") === "true";
-  const cacheKey = request.url;
+  // Use base URL as cache key, ignoring all query parameters
+  const cacheKey = url.origin;
   const cache = caches.default;
 
   if (forceRefresh) {
@@ -117,7 +120,7 @@ async function handleRequest(event) {
     try {
       const result = await getMergeBase64();
       response = new Response(result, { status: 200 });
-      response.headers.append("Cache-Control", "s-maxage=21600"); // Cache for 6 hours
+      response.headers.append("Cache-Control", `s-maxage=${CACHE_TTL_SECONDS}`); // Cache for defined TTL
       event.waitUntil(cache.put(cacheKey, response.clone()));
     } catch (e) {
       return new Response(e.message, { status: 500 });
